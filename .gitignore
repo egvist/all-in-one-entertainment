@@ -1,0 +1,21 @@
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Test cache
+.pytest_cache/
+
+# Environment variables / secrets
+.env
+
+# Local databases
+*.db
+*.sqlite3
+
+# Operating system files
+.DS_Store
+Thumbs.db
