@@ -1,4 +1,6 @@
 import httpx
+import time
+
 from mediaatlas.api.igdb_mapper import map_igdb_game
 from mediaatlas.domain.models import MediaItem
 
@@ -14,13 +16,19 @@ class IGDBClient:
         self.client_id = client_id
         self.client_secret = client_secret
 
+        # Cache
+        self._access_token: str | None = None
+        self._token_expires_at: float = 0.0
+
     def _get_access_token(self) -> str:
+        if (self._access_token is not None and time.monotonic() < self._token_expires_at):
+            return self._access_token
         payload = {
             "client_id": self.client_id,
             "client_secret": self.client_secret,
             "grant_type": "client_credentials"
         }
-
+        
         with httpx.Client(
             base_url=self.AUTH_BASE_URL,
             timeout=10.0
@@ -32,40 +40,61 @@ class IGDBClient:
 
             response.raise_for_status()
             auth_data = response.json()
+            self._access_token = auth_data["access_token"]
+            expires_in = auth_data["expires_in"]
+            self._token_expires_at = (time.monotonic() + max(0, expires_in - 60))
 
         return auth_data["access_token"]
 
-    def search_games(self, title:str) -> list[MediaItem]:
+    def search_games(self, title:str, page: int = 1, page_size: int = 5) -> list[MediaItem]:
         if not title.strip():
             raise ValueError("Search title cannot be empty")
 
-        access_token = self._get_access_token()
+        if type(page) is not int or page < 1:
+            raise ValueError("Page must be a positive number")
 
-        headers = {
-            "Client-ID": self.client_id,
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json"
-        }
+        if type(page_size) is not int or (page_size > 50 or page_size < 1):
+            raise ValueError("Page size must be between 1-50")
+
+        # Pagination
+        offset = (page-1) * page_size
 
         safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
 
         query = f"""
         fields id, name, summary, cover.image_id, first_release_date, genres.name;
         search "{safe_title}";
-        limit 5;
+        limit {page_size};
+        offset {offset};
         """
 
-        with httpx.Client(
-            base_url=self.API_BASE_URL,
-            headers=headers,
-            timeout=10.0
-        ) as client:
-            response = client.post(
-                "/games",
-                content=query
-            )
-
-            response.raise_for_status()
-            games = response.json()
+        games = self._request_games(query)
 
         return [map_igdb_game(game) for game in games]
+
+
+    def _request_games(self, query: str) -> list[dict]:
+        for attempt in range(2):
+            access_token = self._get_access_token()
+            headers = {
+                "Client-ID": self.client_id,
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json"
+                }
+            with httpx.Client(
+                base_url=self.API_BASE_URL,
+                headers=headers,
+                timeout=10.0
+            ) as client:
+                response = client.post("/games", content=query)
+                if response.status_code == 401 and attempt == 0:
+                    self._invalidate_access_token()
+                    continue
+                response.raise_for_status()
+                games = response.json()
+            return games
+
+
+    def _invalidate_access_token(self) -> None:
+        self._access_token = None
+        self._token_expires_at = 0.0
