@@ -70,9 +70,10 @@ class IGDBClient:
 
         games = self._request_games(query)
 
+        # return list of MediaItem object
         return [map_igdb_game(game) for game in games]
 
-
+    # return games response as json
     def _request_games(self, query: str) -> list[dict]:
         for attempt in range(2):
             access_token = self._get_access_token()
