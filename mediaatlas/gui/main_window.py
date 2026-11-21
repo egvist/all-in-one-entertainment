@@ -6,20 +6,23 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QPushButton,
-    QLineEdit
+    QLineEdit,
+    QScrollArea,
+    QGridLayout
 )
-
-from PySide6.QtCore import QThread, Slot
+from PySide6.QtNetwork import QNetworkAccessManager
+from PySide6.QtCore import QThread, Slot, Qt
 from mediaatlas.gui.workers import GameSearchWorker
 from mediaatlas.api.igdb_client import IGDBClient
 from mediaatlas.domain.models import MediaItem
-
+from mediaatlas.gui.widgets.game_card import GameCard
 
 class MainWindow(QMainWindow):
 
     def __init__(self, igdb_client: IGDBClient):
         super().__init__()
 
+        self.image_manager = QNetworkAccessManager(self)
         self.igdb_client = igdb_client
         self.setWindowTitle("MediaAtlas")
         self.resize(1100, 700)
@@ -103,6 +106,16 @@ class MainWindow(QMainWindow):
     def create_content_area(self):
         content_area = QWidget()
 
+        self.results_container = QWidget()
+        self.results_grid = QGridLayout()
+        self.results_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        
+        self.results_container.setLayout(self.results_grid)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.results_container)
         
         v_layout = QVBoxLayout(content_area)
         v_layout.setSpacing(8)
@@ -118,6 +131,7 @@ class MainWindow(QMainWindow):
         v_layout.addWidget(title)
         v_layout.addWidget(description)
         
+        
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search any games...")
@@ -132,11 +146,12 @@ class MainWindow(QMainWindow):
         self.result_label = QLabel("Search for a game to get started.")
         self.result_label.setWordWrap(True)
         v_layout.addWidget(self.result_label)
-        v_layout.addStretch()
+        v_layout.addWidget(scroll_area, 1)
 
         return content_area
 
     def handle_search(self):
+        
         query = self.search_input.text().strip()
         if not query:
             return
@@ -144,6 +159,7 @@ class MainWindow(QMainWindow):
         if self._search_running:
             return
 
+        self.clear_results()
         self._search_running = True
         self.result_label.setText("Searching...")
         self.search_button.setEnabled(False)
@@ -170,17 +186,17 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def show_search_result(self, games: list[MediaItem]):
+        self.clear_results()
+
         if not games:
             self.result_label.setText("No games found.")
             return
+        self.result_label.setText(f"Games found: {len(games)}")
+        for index, game in enumerate(games):
+            row, column = divmod(index, 3)
+            game_card = GameCard(game, self.image_manager)
+            self.results_grid.addWidget(game_card, row, column)
 
-        lines = []
-        for index, game in enumerate(games, start=1):
-            lines.append(f"{index}. {game.title}")
-        
-        result_text = (f"Games found: {len(games)}\n\n" + "\n".join(lines))
-
-        self.result_label.setText(result_text)
 
     @Slot()
     def on_search_finished(self):
@@ -192,3 +208,10 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def show_search_error(self, message:str):
         self.result_label.setText(f"Search failed: {message}")
+
+    def clear_results(self):
+        while self.results_grid.count():
+            widget = self.results_grid.takeAt(0).widget()
+
+            if widget is not None:
+                widget.deleteLater()
