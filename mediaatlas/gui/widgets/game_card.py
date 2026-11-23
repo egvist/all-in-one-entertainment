@@ -1,17 +1,20 @@
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
 from PySide6.QtGui import QPixmap
 from mediaatlas.domain.models import MediaItem
-from PySide6.QtCore import Qt, QUrl, Slot
+from PySide6.QtCore import Qt, QUrl, Slot, Signal
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+
 
 
 class GameCard(QFrame):
 
+    clicked = Signal(object)
 
     def __init__(self, game: MediaItem, image_manager: QNetworkAccessManager):
         super().__init__()
         self.image_manager = image_manager
         self.game = game
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setup_ui()
 
     def setup_ui(self):
@@ -96,3 +99,8 @@ class GameCard(QFrame):
 
         finally:
             self._cover_reply = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.game)
+        super().mousePressEvent(event)
