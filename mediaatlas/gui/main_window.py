@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QLineEdit,
     QScrollArea,
-    QGridLayout
+    QGridLayout,
+    QStackedWidget
 )
 from PySide6.QtNetwork import QNetworkAccessManager
 from PySide6.QtCore import QThread, Slot, Qt
@@ -16,8 +17,12 @@ from mediaatlas.gui.workers import GameSearchWorker
 from mediaatlas.api.igdb_client import IGDBClient
 from mediaatlas.domain.models import MediaItem
 from mediaatlas.gui.widgets.game_card import GameCard
+from mediaatlas.gui.pages.game_detail_page import GameDetailPage
 
 class MainWindow(QMainWindow):
+
+    
+
 
     def __init__(self, igdb_client: IGDBClient):
         super().__init__()
@@ -28,7 +33,12 @@ class MainWindow(QMainWindow):
         self.resize(1100, 700)
         self.setMinimumSize(900, 600)
         self._search_running = False
-
+        self.content_stack = QStackedWidget()
+        self.catalog_page = self.create_content_area()
+        self.detail_page = GameDetailPage()
+        self.content_stack.addWidget(self.catalog_page)
+        self.content_stack.addWidget(self.detail_page)
+        self.content_stack.setCurrentWidget(self.catalog_page)
 
         self.setup_ui()
 
@@ -41,13 +51,15 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
 
         sidebar = self.create_sidebar()
-        content_area = self.create_content_area()
+        
 
         # Responsive width ratio: 1:4
         main_layout.addWidget(sidebar, 1)
-        main_layout.addWidget(content_area, 4)
+        main_layout.addWidget(self.content_stack, 4)
 
         self.setCentralWidget(central_widget)
+
+        self.detail_page.back_requested.connect(self.show_games_catalog)
 
     def create_sidebar(self):
         sidebar = QWidget()
@@ -85,8 +97,7 @@ class MainWindow(QMainWindow):
             "Games",
             "Movies",
             "TV Series",
-            "Anime",
-            "Books",
+            "Anime"
         ]
 
         for category in categories:
@@ -195,8 +206,17 @@ class MainWindow(QMainWindow):
         for index, game in enumerate(games):
             row, column = divmod(index, 3)
             game_card = GameCard(game, self.image_manager)
+            game_card.clicked.connect(self.open_game_detail)
             self.results_grid.addWidget(game_card, row, column)
 
+    @Slot(object)
+    def open_game_detail(self, game: MediaItem):
+        self.detail_page.set_game(game)
+        self.content_stack.setCurrentWidget(self.detail_page)
+
+    @Slot()
+    def show_games_catalog(self):
+        self.content_stack.setCurrentWidget(self.catalog_page)
 
     @Slot()
     def on_search_finished(self):
