@@ -31,3 +31,9 @@ for game in first_page:
 
 for game in second_page:
     print("PAGE 2:", game.external_id, game.title)
+
+
+games = client.discover_games(page=1, page_size=5)
+
+for game in games:
+    print(game.title)

@@ -99,3 +99,28 @@ class IGDBClient:
     def _invalidate_access_token(self) -> None:
         self._access_token = None
         self._token_expires_at = 0.0
+
+
+
+    def discover_games(self, page: int = 1, page_size: int = 20) -> list[MediaItem]:
+
+        if type(page) is not int or page < 1:
+            raise ValueError("Page must be a positive integer")
+
+        if type(page_size) is not int or not 1 <= page_size <= 50:
+            raise ValueError("Page size must be between 1 and 50")
+
+        
+        offset = (page-1) * page_size
+
+        query = f"""
+            fields id,name,summary, cover.image_id, first_release_date, genres.name, aggregated_rating,aggregated_rating_count;
+            where aggregated_rating != null & aggregated_rating_count >= 5;
+            sort aggregated_rating desc;
+            limit {page_size};
+            offset {offset};
+        """
+
+        games = self._request_games(query)
+
+        return [map_igdb_game(game) for game in games]
