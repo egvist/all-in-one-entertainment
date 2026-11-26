@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QSizePolicy
 from PySide6.QtGui import QPixmap
 from mediaatlas.domain.models import MediaItem
 from PySide6.QtCore import Qt, QUrl, Slot, Signal
@@ -21,7 +21,11 @@ class GameCard(QFrame):
         card_layout = QVBoxLayout(self)
 
         self.cover_label = QLabel("Game Cover")
-        self.cover_label.setFixedHeight(180)
+
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred
+        )
         self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.setObjectName("gameCard")
@@ -33,8 +37,6 @@ class GameCard(QFrame):
 
         """)
 
-        self.setFixedWidth(220)
-
         label = QLabel(self.game.title)
         label.setWordWrap(True)
         genre = QLabel()
@@ -43,8 +45,14 @@ class GameCard(QFrame):
             if self.game.genres
             else "Unknown genre"
         )
-
         genre.setText(genres_text)
+
+        genre.setWordWrap(True)
+        genre.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred
+        )
+
         release_date = QLabel()
         if self.game.release_date is not None:
             release_date.setText(self.game.release_date.isoformat())
